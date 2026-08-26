@@ -1,79 +1,729 @@
-const KEY='inventoryKK_v3';
-const SESSION='inventoryKK_session_v3';
-const GROUPS={
-  Admin:{label:'Admin',color:'brown',pages:['dashboard','master','warehouse','dailyso','estimate','settings'],actions:{create:true,edit:true,delete:true,manageUsers:true,reset:true,export:true,import:true}},
-  Manager:{label:'Manager',color:'blue',pages:['dashboard','master','warehouse','dailyso','estimate','settings'],actions:{create:true,edit:true,delete:false,manageUsers:false,reset:false,export:true,import:true}},
-  Staff:{label:'Staff',color:'green',pages:['dashboard','master','warehouse','dailyso','estimate'],actions:{create:true,edit:false,delete:false,manageUsers:false,reset:false,export:false,import:false}},
-  Viewer:{label:'Viewer',color:'gray',pages:['dashboard','master','dailyso','estimate'],actions:{create:false,edit:false,delete:false,manageUsers:false,reset:false,export:false,import:false}}
-};
-const DEFAULT_USERS=[
- {id:'u-admin',username:'admin',name:'Administrator',password:'admin123',group:'Admin',active:true},
- {id:'u-manager',username:'manager',name:'Manager',password:'654321',group:'Manager',active:true},
- {id:'u-staff',username:'staff',name:'Staff Gudang',password:'123456',group:'Staff',active:true},
- {id:'u-viewer',username:'viewer',name:'Viewer',password:'111111',group:'Viewer',active:true}
-];
-const seedItems=[
- {id:'i-1',name:'Cup 16oz',sku:'CUP16',category:'Raw Material',uomBesar:'Karton',uomKecil:'Pcs',konversi:1000,opening:600,price:0,displayName:'Cup 16oz'},
- {id:'i-2',name:'Cup 22oz',sku:'CUP22',category:'Raw Material',uomBesar:'Karton',uomKecil:'Pcs',konversi:1000,opening:420,price:0,displayName:'Cup 22oz'},
- {id:'i-3',name:'Coffee Bean House Blend',sku:'COFHB',category:'Raw Material',uomBesar:'Bag',uomKecil:'Gram',konversi:1000,opening:8500,price:0,displayName:'House Blend'},
- {id:'i-4',name:'Syrup Vanilla',sku:'SYR-VAN',category:'Raw Material',uomBesar:'Botol',uomKecil:'Ml',konversi:750,opening:2400,price:0,displayName:'Vanilla'},
- {id:'i-5',name:'Tumbler KK',sku:'MERCH-TMB',category:'Merchandise',uomBesar:'Pack',uomKecil:'Pcs',konversi:20,opening:35,price:85000,displayName:'Tumbler KK'},
- {id:'i-6',name:'Paper Bag Large',sku:'PB-L',category:'Kitchen Supplier',uomBesar:'Pack',uomKecil:'Pcs',konversi:100,opening:280,price:0,displayName:'Paper Bag L'}
-];
-const today=()=>new Date().toISOString().slice(0,10);
-const id=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-let state={users:[],items:[],transactions:[],batches:[],so:[],drafts:[],activity:[]};
-let currentUser=null;
-const $=s=>document.querySelector(s); const $$=s=>[...document.querySelectorAll(s)];
-function save(){localStorage.setItem(KEY,JSON.stringify(state));}
-function load(){try{const raw=localStorage.getItem(KEY);if(raw){state=JSON.parse(raw)}else{state={users:DEFAULT_USERS,items:seedItems,transactions:[],batches:[],so:[],drafts:[],activity:[]};save();}}catch(e){state={users:DEFAULT_USERS,items:seedItems,transactions:[],batches:[],so:[],drafts:[],activity:[]};save();}}
-function currentStock(itemId){const item=state.items.find(x=>x.id===itemId);let qty=Number(item?.opening||0);for(const t of state.transactions){if(t.itemId!==itemId)continue;qty += t.type==='IN'?Number(t.qty):Number(-t.qty)}return qty;}
-function itemName(itemId){return state.items.find(x=>x.id===itemId)?.name||'Item dihapus';}
-function formatQty(n){return new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(Number(n||0));}
-function formatDateTime(v){try{return new Date(v).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}catch{return '-'}}
-function logActivity(type,itemId,text){state.activity.unshift({id:id(),at:new Date().toISOString(),type,itemId,text,user:currentUser?.name||'System'});state.activity=state.activity.slice(0,50);save();}
-function can(action){return !!(currentUser&&GROUPS[currentUser.group]?.actions?.[action]);}
-function pageAllowed(page){return !!(currentUser&&GROUPS[currentUser.group]?.pages.includes(page));}
-function showToast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(showToast.t);showToast.t=setTimeout(()=>el.classList.remove('show'),2200)}
-function openModal(title,body,submitText,submitFn){const root=$('#modalRoot');root.innerHTML=`<div class="modal-overlay" id="activeModal"><div class="modal"><div class="modal-head"><h3>${title}</h3><button class="close" type="button" id="closeModal">✕</button></div><div class="modal-body">${body}</div><div class="modal-actions"><button class="btn secondary" type="button" id="cancelModal">Batal</button><button class="btn primary" type="button" id="submitModal">${submitText}</button></div></div></div>`;$('#closeModal').onclick=closeModal;$('#cancelModal').onclick=closeModal;$('#submitModal').onclick=()=>submitFn(root);}
-function closeModal(){$('#modalRoot').innerHTML=''}
-function login(user,pass){const u=state.users.find(x=>x.username.toLowerCase()===user.toLowerCase()&&x.password===pass&&x.active);if(!u){$('#loginError').textContent='Username atau password salah.';return}currentUser={...u};localStorage.setItem(SESSION,JSON.stringify({id:u.id}));$('#loginError').textContent='';bootApp();}
-function logout(){localStorage.removeItem(SESSION);currentUser=null;$('#appView').classList.add('hidden');$('#loginView').classList.remove('hidden');$('#loginPassword').value='';}
-function restoreSession(){const s=JSON.parse(localStorage.getItem(SESSION)||'null');if(s){const u=state.users.find(x=>x.id===s.id&&x.active);if(u){currentUser={...u};bootApp();return}}$('#appView').classList.add('hidden');$('#loginView').classList.remove('hidden');}
-function bootApp(){loadHeader();applyNavPermissions();showPage('dashboard');renderAll();}
-function loadHeader(){$('#helloName').textContent=currentUser.name.split(' ')[0];$('#roleText')?.remove?.();$('#userLabel').textContent=currentUser.name;$('#userAvatar').textContent=currentUser.name[0].toUpperCase();$('#menuUserName').textContent=currentUser.name;$('#menuUserGroup').textContent='Group: '+currentUser.group;$('#loginView').classList.add('hidden');$('#appView').classList.remove('hidden');}
-function applyNavPermissions(){ $$('.nav-btn').forEach(b=>{const p=b.dataset.page;b.style.display=pageAllowed(p)?'flex':'none'}); if(!pageAllowed('settings'))$('#userMenuBtn').title=''; }
-function showPage(page){if(!pageAllowed(page))return showToast('Akses halaman ditolak untuk group ini.');$$('.page').forEach(p=>p.classList.remove('active'));$(`#page-${page}`).classList.add('active');$$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.page===page));const labels={dashboard:'Dashboard',master:'Master Item',warehouse:'Gudang',dailyso:'Daily SO',estimate:'Estimasi Order',settings:'Pengaturan'};$('#pageSubtitle').textContent=labels[page]||'';closeUserMenu();}
-function closeUserMenu(){$('#userMenu').classList.add('hidden')}
-function renderAll(){renderDashboard();renderMaster();renderWarehouse();renderSO();renderEstimate();renderSettings();}
-function renderDashboard(){const low=state.items.filter(i=>currentStock(i.id)<5).sort((a,b)=>currentStock(a.id)-currentStock(b.id));const exp=state.batches.filter(b=>b.qty>0&&((new Date(b.expireDate)-new Date())/86400000)<=7&&new Date(b.expireDate)>=new Date()).sort((a,b)=>new Date(a.expireDate)-new Date(b.expireDate));const soToday=state.so.filter(s=>s.date===today());const soPct=state.items.length?Math.round(soToday.length/state.items.length*100):0;$('#metricItems').textContent=state.items.length;$('#metricLow').textContent=low.length;$('#metricExpire').textContent=exp.length;$('#metricSO').textContent=soPct+'%';
- $('#lowStockList').innerHTML=low.slice(0,5).map(i=>`<div class="row-card"><div class="row-top"><div><div class="row-title">${esc(i.name)}</div><div class="row-meta">${esc(i.sku||'-')} · ${esc(i.uomKecil)}</div></div><div class="stock-pill"><strong>${formatQty(currentStock(i.id))}</strong><small>stok</small></div></div></div>`).join('')||'<div class="list-empty">Stok aman 🎉</div>';
- $('#expiryList').innerHTML=exp.slice(0,5).map(b=>{const d=Math.ceil((new Date(b.expireDate)-new Date())/86400000);return `<div class="row-card"><div class="row-top"><div><div class="row-title">${esc(itemName(b.itemId))}</div><div class="row-meta">Expire ${esc(b.expireDate)} · Qty ${formatQty(b.qty)}</div></div><span class="badge ${d<=2?'danger':'warn'}">${d} hari</span></div></div>`}).join('')||'<div class="list-empty">Tidak ada batch yang akan expire.</div>';
- $('#activityList').innerHTML=state.activity.slice(0,10).map(a=>`<div class="row-card activity-row"><div class="activity-icon">${a.type==='IN'?'📥':a.type==='OUT'?'📤':a.type==='SO'?'🧾':a.type==='ITEM'?'📦':'⚙️'}</div><div><div class="activity-title">${esc(a.text)}</div><div class="activity-desc">${esc(a.user)} · ${formatDateTime(a.at)}</div></div><div class="activity-time">${esc(itemName(a.itemId))}</div></div>`).join('')||'<div class="list-empty">Belum ada aktivitas.</div>';}
-function renderMaster(){const search=($('#masterSearch')?.value||'').toLowerCase();const cat=$('#masterCategory')?.value||'all';let arr=state.items.filter(i=>(cat==='all'||i.category===cat)&&(`${i.name} ${i.sku}`.toLowerCase().includes(search)));$('#masterList').innerHTML=arr.map(i=>{const stock=currentStock(i.id);const status=stock<3?'danger':stock<5?'warn':'safe';return `<div class="row-card master-card"><div class="thumb">${i.image?`<img src="${i.image}" style="width:100%;height:100%;object-fit:cover;border-radius:13px">`:'📦'}</div><div><div class="row-title">${esc(i.name)}</div><div class="row-meta">${esc(i.sku||'-')} · ${esc(i.category)} · 1 ${esc(i.uomBesar)} = ${formatQty(i.konversi)} ${esc(i.uomKecil)}</div><span class="badge ${status}">${status==='safe'?'Aman':status==='warn'?'Menipis':'Kritis'}</span></div><div class="stock-pill"><strong>${formatQty(stock)}</strong><small>${esc(i.uomKecil)}</small><div class="master-actions"><button class="icon-btn" data-edit-item="${i.id}">✏️</button><button class="icon-btn danger" data-delete-item="${i.id}">🗑️</button></div></div></div>`}).join('')||'<div class="list-empty">Belum ada item.</div>';}
-function renderWarehouse(){const ins=state.transactions.filter(t=>t.type==='IN').sort((a,b)=>b.at.localeCompare(a.at));const outs=state.transactions.filter(t=>t.type==='OUT').sort((a,b)=>b.at.localeCompare(a.at));$('#inList').innerHTML=ins.map(t=>txHtml(t,'IN')).join('')||'<div class="list-empty">Belum ada transaksi IN.</div>';$('#outList').innerHTML=outs.map(t=>txHtml(t,'OUT')).join('')||'<div class="list-empty">Belum ada transaksi OUT.</div>';
- const bs=[...state.batches].sort((a,b)=>new Date(a.expireDate)-new Date(b.expireDate));$('#batchList').innerHTML=bs.map(b=>{const d=Math.ceil((new Date(b.expireDate)-new Date())/86400000);const cls=d<0?'danger':d<=7?'warn':'safe';return `<div class="row-card"><div class="row-top"><div><div class="row-title">${esc(itemName(b.itemId))}</div><div class="row-meta">Batch ${esc(b.id)} · Expire ${esc(b.expireDate)} · Sisa ${formatQty(b.qty)}</div></div><span class="badge ${cls}">${d<0?'EXPIRED':d+' hari'}</span></div></div>`}).join('')||'<div class="list-empty">Belum ada batch.</div>'}
-function txHtml(t,type){return `<div class="row-card"><div class="row-top"><div><div class="row-title">${esc(itemName(t.itemId))}</div><div class="row-meta">${esc(t.note||'-')} · ${formatDateTime(t.at)} · ${esc(t.user)}</div>${t.batchId?`<div class="row-meta">Batch: ${esc(t.batchId)}</div>`:''}</div><div class="stock-pill"><strong style="color:${type==='IN'?'var(--green)':'var(--red)'}">${type==='IN'?'+':'−'}${formatQty(t.qty)}</strong><small>${esc(state.items.find(i=>i.id===t.itemId)?.uomKecil||'UOM')}</small></div></div></div>`}
-function renderSO(){const list=state.so.filter(s=>s.date===today()).sort((a,b)=>b.at.localeCompare(a.at));const diffs=list.map(s=>Number(s.physical)-Number(s.system));$('#soCount').textContent=list.length;$('#soDiff').textContent=formatQty(diffs.reduce((a,b)=>a+b,0));const abs=list.reduce((a,s)=>a+Math.abs(Number(s.physical)-Number(s.system)),0);const base=list.reduce((a,s)=>a+Math.max(Number(s.system),1),0);$('#soAccuracy').textContent=(base?Math.max(0,Math.round((1-abs/base)*100)):0)+'%';$('#soList').innerHTML=list.map(s=>{const diff=Number(s.physical)-Number(s.system);const cls=diff===0?'safe':diff>0?'info':'danger';return `<div class="row-card"><div class="row-top"><div><div class="row-title">${esc(itemName(s.itemId))}</div><div class="row-meta">Fisik ${formatQty(s.physical)} · Sistem ${formatQty(s.system)} · ${formatDateTime(s.at)}</div><div class="row-meta">${esc(s.note||'Tidak ada catatan')}</div></div><span class="badge ${cls}">${diff>0?'+':''}${formatQty(diff)}</span></div></div>`}).join('')||'<div class="list-empty">Belum ada SO hari ini.</div>'}
-function renderEstimate(){const select=$('#estimateItem');const current=select.value||state.items[0]?.id||'';select.innerHTML=state.items.map(i=>`<option value="${i.id}">${esc(i.name)} · ${esc(i.sku)}</option>`).join('');if(current)select.value=current;calcEstimate();$('#draftList').innerHTML=state.drafts.sort((a,b)=>b.at.localeCompare(a.at)).map(d=>`<div class="row-card"><div class="row-top"><div><div class="row-title">${esc(itemName(d.itemId))}</div><div class="row-meta">Qty rekomendasi ${formatQty(d.qty)} · dibuat ${formatDateTime(d.at)}</div></div><button class="icon-btn danger" data-delete-draft="${d.id}">✕</button></div></div>`).join('')||'<div class="list-empty">Belum ada draft order.</div>'}
-function calcEstimate(){const item=state.items.find(i=>i.id===$('#estimateItem')?.value);if(!item)return;const sales=Number($('#estimateSales').value||0),safe=Number($('#estimateSafeDays').value||0),factor=Number($('#estimateFactor').value||1),daily=sales/30,need=daily*safe*factor,rec=Math.max(0,Math.ceil(need-currentStock(item.id)));$('#estimateCurrent').textContent=formatQty(currentStock(item.id));$('#estimateDaily').textContent=formatQty(daily);$('#estimateRecommendation').textContent=formatQty(rec)}
-function renderSettings(){const allow=can('manageUsers');$('#addUserBtn').style.display=allow?'block':'none';$('#userMgmtHint').textContent=allow?'Admin dapat mengelola user.':'Hanya Admin.';$('#resetBtn').style.display=can('reset')?'block':'none';$('#exportBtn').style.display=can('export')?'block':'none';$('#importBtn').style.display=can('import')?'block':'none';$('#userList').innerHTML=state.users.map(u=>`<div class="row-card"><div class="row-top"><div><div class="row-title">${esc(u.name)}</div><div class="row-meta">@${esc(u.username)} · ${esc(u.group)}</div></div><span class="badge ${u.active?'safe':'danger'}">${u.active?'Aktif':'Nonaktif'}</span></div></div>`).join('');const pageLabels=['dashboard','master','warehouse','dailyso','estimate','settings'];$('#permissionTable').innerHTML='<div>Group</div>'+pageLabels.map(x=>`<div>${x}</div>`).join('')+Object.keys(GROUPS).map(g=>`<div>${g}</div>`+pageLabels.map(p=>`<div>${GROUPS[g].pages.includes(p)?'✅':'—'}</div>`).join('')).join('')}
-function addItemModal(editId){if(!can(editId?'edit':'create'))return showToast('Group ini tidak punya izin mengubah item.');const existing=state.items.find(i=>i.id===editId);const i=existing||{name:'',sku:'',category:'Raw Material',uomBesar:'Karton',uomKecil:'Pcs',konversi:1,opening:0,price:0,displayName:''};const body=`<div class="modal-row"><label>Nama Item<input id="m_name" value="${attr(i.name)}"></label><label>SKU<input id="m_sku" value="${attr(i.sku)}"></label></div><div class="modal-row"><label>Kategori<select id="m_category"><option ${i.category==='Raw Material'?'selected':''}>Raw Material</option><option ${i.category==='Merchandise'?'selected':''}>Merchandise</option><option ${i.category==='Kitchen Supplier'?'selected':''}>Kitchen Supplier</option></select></label><label>Harga Jual<input id="m_price" type="number" value="${Number(i.price||0)}"></label></div><div class="modal-row"><label>UOM Besar<input id="m_ub" value="${attr(i.uomBesar)}"></label><label>UOM Kecil<input id="m_uk" value="${attr(i.uomKecil)}"></label></div><div class="modal-row"><label>Konversi<input id="m_kon" type="number" min="1" value="${Number(i.konversi||1)}"></label><label>Stok Awal<input id="m_open" type="number" min="0" step="0.01" value="${Number(i.opening||0)}" ${existing?'disabled':''}></label></div><label>Nama Display<input id="m_display" value="${attr(i.displayName||i.name)}"></label><div class="hint">Stok awal hanya diatur saat item dibuat.</div>`;openModal(existing?'Edit Item':'Tambah Item',body,existing?'Simpan Perubahan':'Tambah',root=>{const name=root.querySelector('#m_name').value.trim(),sku=root.querySelector('#m_sku').value.trim(),category=root.querySelector('#m_category').value,price=Number(root.querySelector('#m_price').value||0),ub=root.querySelector('#m_ub').value.trim(),uk=root.querySelector('#m_uk').value.trim(),kon=Math.max(1,Number(root.querySelector('#m_kon').value||1)),opening=Math.max(0,Number(root.querySelector('#m_open').value||0)),display=root.querySelector('#m_display').value.trim()||name;if(!name||!ub||!uk)return showToast('Lengkapi field wajib.');if(state.items.some(x=>x.sku===sku&&x.id!==editId))return showToast('SKU sudah digunakan.');if(existing){Object.assign(existing,{name,sku,category,price,uomBesar:ub,uomKecil:uk,konversi:kon,displayName:display});logActivity('ITEM',existing.id,'Item diperbarui: '+name)}else{const ni={id:id(),name,sku:sku||('SKU-'+Math.random().toString(36).slice(2,8).toUpperCase()),category,price,uomBesar:ub,uomKecil:uk,konversi:kon,opening,displayName:display};state.items.push(ni);logActivity('ITEM',ni.id,'Item ditambahkan: '+name)}save();closeModal();renderAll();showToast(existing?'Item diperbarui.':'Item ditambahkan.');});}
-function deleteItem(itemId){if(!can('delete'))return showToast('Group ini tidak punya izin hapus item.');const item=state.items.find(i=>i.id===itemId);if(!item)return;if(!confirm(`Hapus ${item.name}? Transaksi tetap tersimpan, tetapi item tidak akan muncul di master.`))return;state.items=state.items.filter(i=>i.id!==itemId);logActivity('ITEM',itemId,'Item dihapus: '+item.name);save();renderAll();}
-function transactionModal(type){if(!can('create'))return showToast('Group ini tidak punya izin transaksi.');const title=type==='IN'?'Barang Masuk (IN)':'Barang Keluar (OUT)';const itemOptions=state.items.map(i=>`<option value="${i.id}">${esc(i.name)} · stok ${formatQty(currentStock(i.id))}</option>`).join('');const body=type==='IN'?`<label>Item<select id="m_item">${itemOptions}</select></label><div class="modal-row"><label>Qty<input id="m_qty" type="number" min="0.01" step="0.01"></label><label>Expire Date<input id="m_expire" type="date" value="${today()}"></label></div><label>Catatan<input id="m_note" placeholder="Supplier / keterangan"></label>`:`<label>Item<select id="m_item">${itemOptions}</select></label><label>Batch<select id="m_batch"></select></label><label>Qty<input id="m_qty" type="number" min="0.01" step="0.01"></label><label>Tujuan / Catatan<input id="m_note" placeholder="Bar / Kitchen / lainnya"></label>`;openModal(title,body,'Simpan',root=>{const itemId=root.querySelector('#m_item').value,qty=Number(root.querySelector('#m_qty').value||0),note=root.querySelector('#m_note').value.trim();if(!itemId||qty<=0)return showToast('Qty harus lebih dari 0.');if(type==='IN'){const expire=root.querySelector('#m_expire').value;if(!expire)return showToast('Expire date wajib.');const batch={id:'B-'+Math.random().toString(36).slice(2,7).toUpperCase(),itemId,expireDate:expire,qty,createdAt:new Date().toISOString()};state.batches.push(batch);state.transactions.push({id:id(),at:new Date().toISOString(),type:'IN',itemId,qty,note,user:currentUser.name,batchId:batch.id});logActivity('IN',itemId,`Barang IN ${formatQty(qty)}: ${itemName(itemId)}`)}else{const batchId=root.querySelector('#m_batch').value;const batch=state.batches.find(b=>b.id===batchId);if(!batch)return showToast('Pilih batch.');if(qty>batch.qty)return showToast('Qty melebihi sisa batch.');batch.qty-=qty;state.transactions.push({id:id(),at:new Date().toISOString(),type:'OUT',itemId,qty,note,user:currentUser.name,batchId});logActivity('OUT',itemId,`Barang OUT ${formatQty(qty)}: ${itemName(itemId)}`)}save();closeModal();renderAll();showToast('Transaksi tersimpan.')});const updateBatch=()=>{const itemId=$('#m_item')?.value;const batchSel=$('#m_batch');if(!batchSel)return;const bs=state.batches.filter(b=>b.itemId===itemId&&b.qty>0).sort((a,b)=>new Date(a.expireDate)-new Date(b.expireDate));batchSel.innerHTML=bs.map(b=>`<option value="${b.id}">${b.expireDate} · sisa ${formatQty(b.qty)}</option>`).join('')||'<option value="">Tidak ada batch</option>';};if(type==='OUT'){setTimeout(()=>{updateBatch();$('#m_item').addEventListener('change',updateBatch)},0)}}
-function soModal(){if(!can('create'))return showToast('Group ini tidak punya izin input SO.');const opts=state.items.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join('');const body=`<label>Tanggal<input id="m_date" type="date" value="${today()}"></label><label>Item<select id="m_item">${opts}</select></label><div class="modal-row"><label>Stok Fisik<input id="m_phys" type="number" min="0" step="0.01"></label><label>Stok Sistem<input id="m_sys" readonly></label></div><label>Catatan<input id="m_note" placeholder="Kondisi / keterangan"></label>`;openModal('Daily Stock Opname',body,'Simpan SO',root=>{const itemId=root.querySelector('#m_item').value,date=root.querySelector('#m_date').value,physical=Number(root.querySelector('#m_phys').value),system=currentStock(itemId),note=root.querySelector('#m_note').value.trim();if(!itemId||!date||Number.isNaN(physical))return showToast('Lengkapi data SO.');const record={id:id(),date,itemId,physical,system,note,at:new Date().toISOString(),user:currentUser.name};state.so.push(record);logActivity('SO',itemId,`SO ${itemName(itemId)} selisih ${formatQty(physical-system)}`);save();closeModal();renderAll();showToast('SO tersimpan.')});setTimeout(()=>{const update=()=>{$('#m_sys').value=formatQty(currentStock($('#m_item').value))};update();$('#m_item').addEventListener('change',update)},0)}
-function addDraft(){if(!can('create'))return showToast('Group ini tidak punya izin membuat draft.');const itemId=$('#estimateItem').value;const qty=Number($('#estimateRecommendation').textContent.replace(/\./g,'').replace(',','.'));if(!itemId)return;if(qty<=0)return showToast('Rekomendasi order 0.');state.drafts.push({id:id(),itemId,qty,at:new Date().toISOString(),user:currentUser.name});save();renderEstimate();showToast('Masuk ke draft order.')}
-function addUserModal(){if(!can('manageUsers'))return;const body=`<div class="modal-row"><label>Nama<input id="m_name"></label><label>Username<input id="m_username"></label></div><div class="modal-row"><label>Password<input id="m_password" type="password"></label><label>Group<select id="m_group">${Object.keys(GROUPS).map(g=>`<option>${g}</option>`).join('')}</select></label></div><label class="check-row"><input id="m_active" type="checkbox" checked> User aktif</label>`;openModal('Tambah User',body,'Simpan',root=>{const name=root.querySelector('#m_name').value.trim(),username=root.querySelector('#m_username').value.trim(),password=root.querySelector('#m_password').value,group=root.querySelector('#m_group').value,active=root.querySelector('#m_active').checked;if(!name||!username||!password)return showToast('Lengkapi data user.');if(state.users.some(u=>u.username.toLowerCase()===username.toLowerCase()))return showToast('Username sudah ada.');state.users.push({id:id(),name,username,password,group,active});save();closeModal();renderSettings();showToast('User ditambahkan.')})}
-function exportData(){if(!can('export'))return;const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='inventory-kk-backup-'+today()+'.json';a.click();URL.revokeObjectURL(a.href)}
-function importData(file){if(!can('import'))return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.items)||!Array.isArray(d.transactions)||!Array.isArray(d.batches))throw new Error('Format backup tidak cocok');state={users:Array.isArray(d.users)?d.users:state.users,items:d.items,transactions:d.transactions,batches:d.batches,so:Array.isArray(d.so)?d.so:[],drafts:Array.isArray(d.drafts)?d.drafts:[],activity:Array.isArray(d.activity)?d.activity:[]};save();renderAll();showToast('Backup berhasil diimport.')}catch(e){showToast('File backup tidak valid.')}};r.readAsText(file)}
-function resetData(){if(!can('reset'))return;if(!confirm('Reset semua data inventory ke demo awal?'))return;state={users:DEFAULT_USERS,items:seedItems,transactions:[],batches:[],so:[],drafts:[],activity:[]};save();renderAll();showToast('Data direset ke demo awal.')}
-function esc(s){return String(s??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]))}function attr(s){return esc(s)}
+/* ============================================================
+   KK INVENTORY — vanilla JS SPA, localStorage-backed
+   ============================================================ */
 
-document.addEventListener('DOMContentLoaded',()=>{load();restoreSession();
- $('#loginForm').addEventListener('submit',e=>{e.preventDefault();login($('#loginUsername').value.trim(),$('#loginPassword').value)});
- $('#menuLogout').onclick=logout;$('#userMenuBtn').onclick=()=>$('#userMenu').classList.toggle('hidden');document.addEventListener('click',e=>{if(!e.target.closest('#userMenu')&&!e.target.closest('#userMenuBtn'))closeUserMenu()});
- $('#bottomNav').addEventListener('click',e=>{const b=e.target.closest('.nav-btn');if(b)showPage(b.dataset.page)});document.body.addEventListener('click',e=>{const go=e.target.closest('[data-go]');if(go)showPage(go.dataset.go);const edit=e.target.closest('[data-edit-item]');if(edit)addItemModal(edit.dataset.editItem);const del=e.target.closest('[data-delete-item]');if(del)deleteItem(del.dataset.deleteItem);const dd=e.target.closest('[data-delete-draft]');if(dd){state.drafts=state.drafts.filter(d=>d.id!==dd.dataset.deleteDraft);save();renderEstimate();showToast('Draft dihapus.')}});
- $('#addItemBtn').onclick=()=>addItemModal();$('#openInBtn').onclick=()=>transactionModal('IN');$('#openOutBtn').onclick=()=>transactionModal('OUT');$('#openSoBtn').onclick=soModal;$('#addDraftBtn').onclick=addDraft;$('#addUserBtn').onclick=addUserModal;$('#exportBtn').onclick=exportData;$('#importBtn').onclick=()=>$('#importFile').click();$('#importFile').onchange=e=>{if(e.target.files[0])importData(e.target.files[0]);e.target.value=''};$('#resetBtn').onclick=resetData;
- $('#masterSearch').addEventListener('input',renderMaster);$('#masterCategory').addEventListener('change',renderMaster);$('#estimateItem').addEventListener('change',calcEstimate);['estimateSales','estimateSafeDays','estimateFactor'].forEach(id=>$('#'+id).addEventListener('input',calcEstimate));
- $$('.tab').forEach(t=>t.addEventListener('click',()=>{$$('.tab').forEach(x=>x.classList.remove('active'));$$('.tab-panel').forEach(x=>x.classList.remove('active'));t.classList.add('active');$('#warehouse-'+t.dataset.tab).classList.add('active')}));
+const LS_ITEMS = 'kk_items';
+const LS_SETTINGS = 'kk_settings';
+const LS_LOG = 'kk_log';
+
+const CATEGORY_LABELS = { raw: 'Raw Material', condiment: 'Condiment / Kitchen', merch: 'Merchandise' };
+
+/* ---------------- Seed data (first run only) ---------------- */
+function seedData(){
+  return [
+    mkItem('Beef Floss - Original','raw','Gram',1000,1,['2026-11-13','2026-11-19'],1000,1500),
+    mkItem('Bottle Plastic 1L','raw','Pcs',30,1,[],30,60),
+    mkItem('CG Sauce Cheese','raw','Gram',1000,1,[],0,3000),
+    mkItem('Coffee Kenangan Blend','raw','Gram',1000,25,['2027-04-16','2027-04-17','2027-05-05'],0,130000),
+    mkItem('Condensed Milk (SKM)','raw','Gram',1000,16,['2027-01-01'],-16000,160000),
+    mkItem('Evaporated Milk (Carnation)','raw','Mililiter',405,48,['2027-02-01'],-19440,450000),
+    mkItem('Hibiscus Tea','raw','Gram',100,1,['2029-02-19'],-100,150),
+    mkItem('KK Cup Hot 16 Oz','raw','Pcs',25,20,[],25,200),
+    mkItem('KK Cup Ice 14 Oz','raw','Pcs',50,40,[],50,15000),
+    mkItem('KK Boba Straw Plastic','condiment','Pac',1,1,[],19,0),
+    mkItem('KK Trash Bag Besar','condiment','Pac',1,1,[],22,0),
+    mkItem('KK Core Merch Press Cup','merch','Pcs',1,1,[],12,0),
+  ];
+}
+function mkItem(name,category,uom,gramPerPac,pacPerCarton,expiryDates,stock,sales30){
+  return { id: uid(), name, category, uom, gramPerPac, pacPerCarton, expiryDates, stock, sales30 };
+}
+function uid(){ return 'i'+Math.random().toString(36).slice(2,10); }
+
+/* ---------------- State ---------------- */
+let state = {
+  items: load(LS_ITEMS, null) ?? seedData(),
+  settings: load(LS_SETTINGS, null) ?? { leadTime:14, siklusOrder:14, hariAman:28 },
+  log: load(LS_LOG, null) ?? [],
+  tab: 'dashboard',
+  search: ''
+};
+save(LS_ITEMS, state.items);
+save(LS_SETTINGS, state.settings);
+save(LS_LOG, state.log);
+
+function load(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+function persistItems(){ save(LS_ITEMS, state.items); }
+function persistSettings(){ save(LS_SETTINGS, state.settings); }
+function persistLog(){ save(LS_LOG, state.log); }
+
+/* ---------------- Calculations ---------------- */
+function ads(item){ return item.sales30 / 30; }
+
+function daysToExpiry(dateStr){
+  if(!dateStr) return Infinity;
+  const d = new Date(dateStr);
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.round((d - now) / 86400000);
+}
+function nearestExpiry(item){
+  if(!item.expiryDates || item.expiryDates.length===0) return null;
+  const valid = item.expiryDates.filter(Boolean);
+  if(valid.length===0) return null;
+  return valid.map(d=>({d, days:daysToExpiry(d)})).sort((a,b)=>a.days-b.days)[0];
+}
+function orderCalc(item, settings){
+  const a = ads(item);
+  const hariAman = settings.hariAman;
+  const kebutuhan = a * hariAman;
+  const netNeed = kebutuhan - item.stock;
+  const pacsNeeded = netNeed > 0 ? Math.ceil(netNeed / (item.gramPerPac || 1)) : 0;
+  const cartonsNeeded = pacsNeeded > 0 ? Math.ceil(pacsNeeded / (item.pacPerCarton || 1)) : 0;
+  return { ads:a, kebutuhan, netNeed, pacsNeeded, cartonsNeeded };
+}
+function itemStatus(item, settings){
+  const exp = nearestExpiry(item);
+  if(exp && exp.days <= 14) return 'danger';
+  const a = ads(item);
+  const runwayDays = a > 0 ? item.stock / a : Infinity;
+  if(runwayDays <= settings.leadTime) return 'warn';
+  return 'ok';
+}
+function fmt(n){
+  if(n===null||n===undefined||isNaN(n)) return '0';
+  return Math.round(n).toLocaleString('id-ID');
+}
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------------- Tabs / router ---------------- */
+document.getElementById('tabs').addEventListener('click', e=>{
+  const btn = e.target.closest('.tab');
+  if(!btn) return;
+  state.tab = btn.dataset.tab;
+  render();
 });
+
+function setActiveTabUI(){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===state.tab));
+}
+
+function tickClock(){
+  const el = document.getElementById('clock');
+  const now = new Date();
+  el.textContent = now.toLocaleDateString('id-ID',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+}
+setInterval(tickClock, 60000); tickClock();
+
+/* ---------------- Alert strip ---------------- */
+function renderAlerts(){
+  const strip = document.getElementById('alertStrip');
+  const msgs = [];
+  state.items.forEach(it=>{
+    const exp = nearestExpiry(it);
+    if(exp && exp.days <= 14){
+      msgs.push(`<span>⚠ <b>${esc(it.name)}</b> exp ${exp.days<0?'LEWAT':'dlm '+exp.days+' hr'} (${exp.d})</span>`);
+    }
+  });
+  const lowCount = state.items.filter(it=>itemStatus(it,state.settings)==='warn').length;
+  if(lowCount>0) msgs.unshift(`<span><b>${lowCount}</b> barang stok menipis, cek Order Warehouse</span>`);
+  if(msgs.length===0){ strip.classList.add('hidden'); strip.innerHTML=''; return; }
+  strip.classList.remove('hidden');
+  strip.innerHTML = msgs.join('<span style="opacity:.4">&nbsp;•&nbsp;</span>');
+}
+
+/* ---------------- Render root ---------------- */
+function render(){
+  setActiveTabUI();
+  renderAlerts();
+  const c = document.getElementById('content');
+  if(state.tab==='dashboard') c.innerHTML = viewDashboard();
+  else if(state.tab==='master') c.innerHTML = viewMaster();
+  else if(state.tab==='stok') c.innerHTML = viewStok();
+  else if(state.tab==='penjualan') c.innerHTML = viewPenjualan();
+  else if(state.tab==='order') c.innerHTML = viewOrder();
+  else if(state.tab==='settings') c.innerHTML = viewSettings();
+  bindTabEvents();
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+function viewDashboard(){
+  const total = state.items.length;
+  const danger = state.items.filter(it=>itemStatus(it,state.settings)==='danger').length;
+  const warn = state.items.filter(it=>itemStatus(it,state.settings)==='warn').length;
+  const needOrder = state.items.filter(it=>orderCalc(it,state.settings).cartonsNeeded>0).length;
+
+  const rows = [...state.items]
+    .map(it=>({it, status:itemStatus(it,state.settings)}))
+    .sort((a,b)=>({danger:0,warn:1,ok:2}[a.status]-{danger:0,warn:1,ok:2}[b.status]))
+    .slice(0,12);
+
+  return `
+    <div class="section-head">
+      <div>
+        <div class="section-title">Ringkasan Gudang</div>
+        <div class="section-sub">Kondisi stok hari ini — ${state.items.length} SKU terdaftar</div>
+      </div>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="num mono">${total}</div><div class="lbl">Total SKU</div></div>
+      <div class="kpi danger"><div class="num mono">${danger}</div><div class="lbl">Mendekati Kadaluarsa</div></div>
+      <div class="kpi warn"><div class="num mono">${warn}</div><div class="lbl">Stok Menipis</div></div>
+      <div class="kpi ok"><div class="num mono">${needOrder}</div><div class="lbl">Perlu Order</div></div>
+    </div>
+
+    <div class="section-title" style="margin-bottom:10px;">Perhatian Utama</div>
+    <div class="ledger">
+      <div class="ledger-row head" style="grid-template-columns:2.4fr 1fr 1fr 1fr;">
+        <div class="ledger-cell">Nama Barang</div>
+        <div class="ledger-cell">Stok</div>
+        <div class="ledger-cell">Exp Terdekat</div>
+        <div class="ledger-cell">Status</div>
+      </div>
+      ${rows.map(({it,status})=>{
+        const exp = nearestExpiry(it);
+        return `<div class="ledger-row status-${status}" style="grid-template-columns:2.4fr 1fr 1fr 1fr;">
+          <div class="ledger-cell">${esc(it.name)}<span class="small-note">${esc(CATEGORY_LABELS[it.category])}</span></div>
+          <div class="ledger-cell num-cell">${fmt(it.stock)} <span style="color:var(--text-dim)">${esc(it.uom)}</span></div>
+          <div class="ledger-cell num-cell">${exp? esc(exp.d) + ' ('+exp.days+'h)' : '—'}</div>
+          <div class="ledger-cell"><span class="tag ${status}">${status==='danger'?'EXPIRY':status==='warn'?'LOW':'OK'}</span></div>
+        </div>`;
+      }).join('') || '<div class="empty">Belum ada data barang.</div>'}
+    </div>
+  `;
+}
+
+/* ============================================================
+   MASTER BARANG
+   ============================================================ */
+function viewMaster(){
+  const items = filteredItems();
+  return `
+    <div class="section-head">
+      <div>
+        <div class="section-title">Master Barang</div>
+        <div class="section-sub">Data induk raw material, condiment, dan merchandise</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btnAddItem">+ Tambah Barang</button>
+        <button class="btn secondary" id="btnImportCsv">Import CSV</button>
+        <button class="btn secondary" id="btnExportCsv">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="pill-group">
+      <span class="pill ${state.catFilter?'':'active'}" data-cat="">Semua</span>
+      <span class="pill ${state.catFilter==='raw'?'active':''}" data-cat="raw">Raw Material</span>
+      <span class="pill ${state.catFilter==='condiment'?'active':''}" data-cat="condiment">Condiment</span>
+      <span class="pill ${state.catFilter==='merch'?'active':''}" data-cat="merch">Merchandise</span>
+    </div>
+
+    <div class="searchbar">
+      <input type="text" id="searchInput" placeholder="Cari nama barang..." value="${esc(state.search)}">
+    </div>
+
+    <div class="ledger">
+      <div class="ledger-row head" style="grid-template-columns:2fr 0.8fr 0.9fr 1.1fr 1fr 0.6fr;">
+        <div class="ledger-cell">Nama</div>
+        <div class="ledger-cell">UOM</div>
+        <div class="ledger-cell">Stok</div>
+        <div class="ledger-cell">Konversi</div>
+        <div class="ledger-cell">Exp Terdekat</div>
+        <div class="ledger-cell">Aksi</div>
+      </div>
+      ${items.map(it=>{
+        const status = itemStatus(it,state.settings);
+        const exp = nearestExpiry(it);
+        return `<div class="ledger-row status-${status}" style="grid-template-columns:2fr 0.8fr 0.9fr 1.1fr 1fr 0.6fr;">
+          <div class="ledger-cell">${esc(it.name)}<span class="small-note">${esc(CATEGORY_LABELS[it.category])}</span></div>
+          <div class="ledger-cell num-cell">${esc(it.uom)}</div>
+          <div class="ledger-cell num-cell">${fmt(it.stock)}</div>
+          <div class="ledger-cell num-cell" style="font-size:11px;">${fmt(it.gramPerPac)}/pac · ${fmt(it.pacPerCarton)}/ctn</div>
+          <div class="ledger-cell num-cell">${exp? esc(exp.d) : '—'}</div>
+          <div class="ledger-cell"><button class="btn ghost" data-edit="${it.id}" style="padding:5px 8px;">Edit</button></div>
+        </div>`;
+      }).join('') || '<div class="empty">Tidak ada barang cocok. Tambah barang baru atau import CSV.</div>'}
+    </div>
+  `;
+}
+
+function filteredItems(){
+  return state.items.filter(it=>{
+    if(state.catFilter && it.category!==state.catFilter) return false;
+    if(state.search && !it.name.toLowerCase().includes(state.search.toLowerCase())) return false;
+    return true;
+  });
+}
+
+function openItemModal(itemId){
+  const editing = itemId ? state.items.find(i=>i.id===itemId) : null;
+  const it = editing ?? { id:null, name:'', category:'raw', uom:'Gram', gramPerPac:1000, pacPerCarton:1, expiryDates:[], stock:0, sales30:0 };
+  const modal = `
+    <div class="modal-bg" id="modalBg">
+      <div class="modal">
+        <div class="modal-title">${editing?'Edit Barang':'Tambah Barang'}</div>
+        <div class="field">
+          <label>Nama Barang</label>
+          <input type="text" id="f_name" value="${esc(it.name)}">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Kategori</label>
+            <select id="f_category">
+              <option value="raw" ${it.category==='raw'?'selected':''}>Raw Material</option>
+              <option value="condiment" ${it.category==='condiment'?'selected':''}>Condiment / Kitchen</option>
+              <option value="merch" ${it.category==='merch'?'selected':''}>Merchandise</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>UOM</label>
+            <input type="text" id="f_uom" value="${esc(it.uom)}">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Satuan per Pac (gram/ml/pcs)</label>
+            <input type="number" id="f_gramPerPac" class="mono" value="${it.gramPerPac}">
+          </div>
+          <div class="field">
+            <label>Pac per Carton</label>
+            <input type="number" id="f_pacPerCarton" class="mono" value="${it.pacPerCarton}">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Stok Saat Ini</label>
+            <input type="number" id="f_stock" class="mono" value="${it.stock}">
+          </div>
+          <div class="field">
+            <label>Penjualan 30 Hari</label>
+            <input type="number" id="f_sales30" class="mono" value="${it.sales30}">
+          </div>
+        </div>
+        <div class="field">
+          <label>Tanggal Kadaluarsa (pisahkan koma, format YYYY-MM-DD)</label>
+          <input type="text" id="f_expiry" value="${esc((it.expiryDates||[]).join(', '))}" placeholder="2027-01-15, 2027-03-09">
+        </div>
+        <div class="btn-row" style="margin-top:14px;justify-content:space-between;">
+          <div>${editing? '<button class="btn danger" id="btnDeleteItem">Hapus</button>' : ''}</div>
+          <div class="btn-row">
+            <button class="btn ghost" id="btnCancelModal">Batal</button>
+            <button class="btn" id="btnSaveItem">Simpan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('modalRoot').innerHTML = modal;
+  document.getElementById('btnCancelModal').onclick = closeModal;
+  document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
+  if(editing){
+    document.getElementById('btnDeleteItem').onclick = ()=>{
+      if(confirm('Hapus barang ini?')){
+        state.items = state.items.filter(i=>i.id!==editing.id);
+        persistItems(); closeModal(); render();
+      }
+    };
+  }
+  document.getElementById('btnSaveItem').onclick = ()=>{
+    const name = document.getElementById('f_name').value.trim();
+    if(!name){ alert('Nama barang wajib diisi'); return; }
+    const data = {
+      name,
+      category: document.getElementById('f_category').value,
+      uom: document.getElementById('f_uom').value.trim(),
+      gramPerPac: parseFloat(document.getElementById('f_gramPerPac').value)||1,
+      pacPerCarton: parseFloat(document.getElementById('f_pacPerCarton').value)||1,
+      stock: parseFloat(document.getElementById('f_stock').value)||0,
+      sales30: parseFloat(document.getElementById('f_sales30').value)||0,
+      expiryDates: document.getElementById('f_expiry').value.split(',').map(s=>s.trim()).filter(Boolean)
+    };
+    if(editing){
+      Object.assign(editing, data);
+    } else {
+      state.items.push({ id: uid(), ...data });
+    }
+    persistItems();
+    closeModal();
+    render();
+  };
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+
+/* ---------------- CSV import/export ---------------- */
+function itemsToCsv(){
+  const header = ['name','category','uom','gramPerPac','pacPerCarton','stock','sales30','expiryDates'];
+  const rows = state.items.map(it=>[
+    it.name, it.category, it.uom, it.gramPerPac, it.pacPerCarton, it.stock, it.sales30,
+    (it.expiryDates||[]).join('|')
+  ]);
+  return [header, ...rows].map(r=>r.map(csvEscape).join(',')).join('\n');
+}
+function csvEscape(v){
+  const s = String(v??'');
+  return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function parseCsv(text){
+  const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
+  return lines.map(line=>{
+    const out=[]; let cur=''; let inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(inQ){
+        if(ch==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else inQ=false; }
+        else cur+=ch;
+      } else {
+        if(ch==='"') inQ=true;
+        else if(ch===','){ out.push(cur); cur=''; }
+        else cur+=ch;
+      }
+    }
+    out.push(cur);
+    return out;
+  });
+}
+function downloadFile(filename, content, mime){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+/* ============================================================
+   STOK HARIAN (In/Out)
+   ============================================================ */
+function viewStok(){
+  const items = filteredItems();
+  const todayLog = state.log.slice(-40).reverse();
+  return `
+    <div class="section-head">
+      <div>
+        <div class="section-title">Stok Harian</div>
+        <div class="section-sub">Catat barang masuk / keluar, stok otomatis diperbarui</div>
+      </div>
+    </div>
+
+    <div class="searchbar"><input type="text" id="searchInput" placeholder="Cari barang..." value="${esc(state.search)}"></div>
+
+    <div class="ledger">
+      <div class="ledger-row head" style="grid-template-columns:2fr 0.8fr 0.9fr 1fr 1fr;">
+        <div class="ledger-cell">Nama</div>
+        <div class="ledger-cell">Stok</div>
+        <div class="ledger-cell">Masuk (IN)</div>
+        <div class="ledger-cell">Keluar (OUT)</div>
+        <div class="ledger-cell">Aksi</div>
+      </div>
+      ${items.map(it=>`
+        <div class="ledger-row status-${itemStatus(it,state.settings)}" style="grid-template-columns:2fr 0.8fr 0.9fr 1fr 1fr;">
+          <div class="ledger-cell">${esc(it.name)}<span class="small-note">${esc(it.uom)}</span></div>
+          <div class="ledger-cell num-cell">${fmt(it.stock)}</div>
+          <div class="ledger-cell"><input type="number" class="qty-input in-input" data-id="${it.id}" placeholder="0"></div>
+          <div class="ledger-cell"><input type="number" class="qty-input out-input" data-id="${it.id}" placeholder="0"></div>
+          <div class="ledger-cell"><button class="btn ghost apply-log" data-id="${it.id}" style="padding:5px 8px;">Simpan</button></div>
+        </div>
+      `).join('') || '<div class="empty">Tidak ada barang.</div>'}
+    </div>
+
+    <div class="section-title" style="margin-bottom:10px;">Riwayat Terakhir</div>
+    <div class="ledger">
+      <div class="ledger-row head" style="grid-template-columns:1.1fr 2fr 0.8fr 0.9fr;">
+        <div class="ledger-cell">Tanggal</div>
+        <div class="ledger-cell">Barang</div>
+        <div class="ledger-cell">Tipe</div>
+        <div class="ledger-cell">Qty</div>
+      </div>
+      ${todayLog.map(l=>{
+        const it = state.items.find(i=>i.id===l.itemId);
+        return `<div class="ledger-row status-${l.type==='in'?'ok':'warn'}" style="grid-template-columns:1.1fr 2fr 0.8fr 0.9fr;">
+          <div class="ledger-cell num-cell">${esc(l.date)}</div>
+          <div class="ledger-cell">${esc(it? it.name : '(dihapus)')}</div>
+          <div class="ledger-cell"><span class="tag ${l.type==='in'?'ok':'warn'}">${l.type.toUpperCase()}</span></div>
+          <div class="ledger-cell num-cell">${fmt(l.qty)}</div>
+        </div>`;
+      }).join('') || '<div class="empty">Belum ada transaksi.</div>'}
+    </div>
+  `;
+}
+
+/* ============================================================
+   DATA PENJUALAN
+   ============================================================ */
+function viewPenjualan(){
+  const items = filteredItems();
+  return `
+    <div class="section-head">
+      <div>
+        <div class="section-title">Data Penjualan 30 Hari</div>
+        <div class="section-sub">Dipakai untuk menghitung ADS (Average Daily Sales) dan kebutuhan order</div>
+      </div>
+    </div>
+    <div class="searchbar"><input type="text" id="searchInput" placeholder="Cari barang..." value="${esc(state.search)}"></div>
+    <div class="ledger">
+      <div class="ledger-row head" style="grid-template-columns:2.2fr 1.2fr 1fr 0.8fr;">
+        <div class="ledger-cell">Nama</div>
+        <div class="ledger-cell">Penjualan 30 Hari</div>
+        <div class="ledger-cell">ADS</div>
+        <div class="ledger-cell">Aksi</div>
+      </div>
+      ${items.map(it=>`
+        <div class="ledger-row" style="grid-template-columns:2.2fr 1.2fr 1fr 0.8fr;">
+          <div class="ledger-cell">${esc(it.name)}<span class="small-note">${esc(it.uom)}</span></div>
+          <div class="ledger-cell"><input type="number" class="qty-input sales-input" data-id="${it.id}" value="${it.sales30}"></div>
+          <div class="ledger-cell num-cell">${fmt(ads(it))}</div>
+          <div class="ledger-cell"><button class="btn ghost save-sales" data-id="${it.id}" style="padding:5px 8px;">Simpan</button></div>
+        </div>
+      `).join('') || '<div class="empty">Tidak ada barang.</div>'}
+    </div>
+  `;
+}
+
+/* ============================================================
+   ORDER WAREHOUSE
+   ============================================================ */
+function viewOrder(){
+  const s = state.settings;
+  const calc = state.items.map(it=>({ it, c: orderCalc(it, s) }));
+  const needed = calc.filter(x=>x.c.cartonsNeeded>0).sort((a,b)=>b.c.cartonsNeeded-a.c.cartonsNeeded);
+  const today = new Date();
+  const delivery = new Date(today.getTime() + s.leadTime*86400000);
+
+  return `
+    <div class="section-head">
+      <div>
+        <div class="section-title">Order Warehouse</div>
+        <div class="section-sub">Kebutuhan = ADS × Hari Aman (${s.hariAman} hr) − Stok Toko, dibulatkan ke satuan Carton</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btnExportOrder">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi"><div class="num mono">${s.leadTime}</div><div class="lbl">Lead Time (hr)</div></div>
+      <div class="kpi"><div class="num mono">${s.siklusOrder}</div><div class="lbl">Siklus Order (hr)</div></div>
+      <div class="kpi"><div class="num mono">${s.hariAman}</div><div class="lbl">Hari Aman</div></div>
+      <div class="kpi warn"><div class="num mono">${needed.length}</div><div class="lbl">SKU Perlu Order</div></div>
+    </div>
+    <div class="small-note" style="margin-bottom:14px;">Order hari ini, estimasi barang datang: <b class="mono">${delivery.toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</b></div>
+
+    <div class="ledger">
+      <div class="ledger-row head" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr;">
+        <div class="ledger-cell">SKU</div>
+        <div class="ledger-cell">ADS</div>
+        <div class="ledger-cell">Stok</div>
+        <div class="ledger-cell">Butuh (Pac)</div>
+        <div class="ledger-cell">Order (Ctn)</div>
+      </div>
+      ${needed.map(({it,c})=>`
+        <div class="ledger-row status-warn" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr;">
+          <div class="ledger-cell">${esc(it.name)}<span class="small-note">${esc(it.uom)}</span></div>
+          <div class="ledger-cell num-cell">${fmt(c.ads)}</div>
+          <div class="ledger-cell num-cell">${fmt(it.stock)}</div>
+          <div class="ledger-cell num-cell">${fmt(c.pacsNeeded)}</div>
+          <div class="ledger-cell num-cell" style="color:var(--warn);font-weight:600;">${fmt(c.cartonsNeeded)}</div>
+        </div>
+      `).join('') || '<div class="empty">Tidak ada barang yang perlu di-order saat ini. 🎉</div>'}
+    </div>
+  `;
+}
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+function viewSettings(){
+  const s = state.settings;
+  return `
+    <div class="section-head">
+      <div>
+        <div class="section-title">Pengaturan</div>
+        <div class="section-sub">Parameter perhitungan order &amp; cadangan data</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="field-row">
+        <div class="field">
+          <label>Lead Time (hari)</label>
+          <input type="number" id="s_leadTime" class="mono" value="${s.leadTime}">
+        </div>
+        <div class="field">
+          <label>Siklus Order (hari)</label>
+          <input type="number" id="s_siklusOrder" class="mono" value="${s.siklusOrder}">
+        </div>
+      </div>
+      <div class="field">
+        <label>Hari Aman (default Lead Time + Siklus Order)</label>
+        <input type="number" id="s_hariAman" class="mono" value="${s.hariAman}">
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btnSaveSettings">Simpan Pengaturan</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label style="margin-bottom:10px;">Cadangan Data</label>
+      <div class="btn-row">
+        <button class="btn secondary" id="btnBackup">Export Backup (JSON)</button>
+        <button class="btn secondary" id="btnRestore">Import Backup (JSON)</button>
+        <button class="btn danger" id="btnResetData">Reset ke Data Contoh</button>
+      </div>
+      <div class="small-note">Semua data tersimpan di perangkat ini (localStorage). Export backup secara berkala agar data tidak hilang.</div>
+    </div>
+  `;
+}
+
+/* ============================================================
+   EVENT BINDING (delegated per re-render)
+   ============================================================ */
+function bindTabEvents(){
+  // search
+  const search = document.getElementById('searchInput');
+  if(search){
+    search.oninput = (e)=>{ state.search = e.target.value; renderKeepFocus('searchInput'); };
+  }
+  // category pills
+  document.querySelectorAll('.pill[data-cat]').forEach(p=>{
+    p.onclick = ()=>{ state.catFilter = p.dataset.cat || null; render(); };
+  });
+  // master: add/edit
+  const btnAdd = document.getElementById('btnAddItem');
+  if(btnAdd) btnAdd.onclick = ()=>openItemModal(null);
+  document.querySelectorAll('[data-edit]').forEach(b=>{
+    b.onclick = ()=>openItemModal(b.dataset.edit);
+  });
+  // master: csv
+  const btnImp = document.getElementById('btnImportCsv');
+  if(btnImp) btnImp.onclick = importCsvFlow;
+  const btnExp = document.getElementById('btnExportCsv');
+  if(btnExp) btnExp.onclick = ()=>downloadFile('kk-master-barang.csv', itemsToCsv(), 'text/csv');
+
+  // stok harian: apply
+  document.querySelectorAll('.apply-log').forEach(b=>{
+    b.onclick = ()=>{
+      const id = b.dataset.id;
+      const inEl = document.querySelector(`.in-input[data-id="${id}"]`);
+      const outEl = document.querySelector(`.out-input[data-id="${id}"]`);
+      const inQty = parseFloat(inEl.value)||0;
+      const outQty = parseFloat(outEl.value)||0;
+      if(inQty===0 && outQty===0) return;
+      const it = state.items.find(i=>i.id===id);
+      const today = new Date().toISOString().slice(0,10);
+      if(inQty!==0){ it.stock += inQty; state.log.push({id:uid(),itemId:id,date:today,type:'in',qty:inQty}); }
+      if(outQty!==0){ it.stock -= outQty; state.log.push({id:uid(),itemId:id,date:today,type:'out',qty:outQty}); }
+      persistItems(); persistLog(); render();
+    };
+  });
+
+  // penjualan: save
+  document.querySelectorAll('.save-sales').forEach(b=>{
+    b.onclick = ()=>{
+      const id = b.dataset.id;
+      const input = document.querySelector(`.sales-input[data-id="${id}"]`);
+      const val = parseFloat(input.value)||0;
+      const it = state.items.find(i=>i.id===id);
+      it.sales30 = val;
+      persistItems(); render();
+    };
+  });
+
+  // order export
+  const btnOrderExp = document.getElementById('btnExportOrder');
+  if(btnOrderExp) btnOrderExp.onclick = ()=>{
+    const s = state.settings;
+    const rows = state.items.map(it=>{
+      const c = orderCalc(it,s);
+      return [it.name, it.uom, c.cartonsNeeded];
+    }).filter(r=>r[2]>0);
+    const csv = [['SKU NAME','UOM','QTY ORDER'], ...rows].map(r=>r.map(csvEscape).join(',')).join('\n');
+    downloadFile('order-warehouse.csv', csv, 'text/csv');
+  };
+
+  // settings
+  const btnSaveSettings = document.getElementById('btnSaveSettings');
+  if(btnSaveSettings) btnSaveSettings.onclick = ()=>{
+    state.settings.leadTime = parseFloat(document.getElementById('s_leadTime').value)||14;
+    state.settings.siklusOrder = parseFloat(document.getElementById('s_siklusOrder').value)||14;
+    state.settings.hariAman = parseFloat(document.getElementById('s_hariAman').value)|| (state.settings.leadTime+state.settings.siklusOrder);
+    persistSettings();
+    render();
+  };
+  const btnBackup = document.getElementById('btnBackup');
+  if(btnBackup) btnBackup.onclick = ()=>{
+    const data = JSON.stringify({items:state.items, settings:state.settings, log:state.log}, null, 2);
+    downloadFile('kk-inventory-backup.json', data, 'application/json');
+  };
+  const btnRestore = document.getElementById('btnRestore');
+  if(btnRestore) btnRestore.onclick = ()=>{
+    const inp = document.createElement('input');
+    inp.type='file'; inp.accept='.json,application/json';
+    inp.onchange = ()=>{
+      const file = inp.files[0]; if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const data = JSON.parse(reader.result);
+          if(data.items){ state.items=data.items; persistItems(); }
+          if(data.settings){ state.settings=data.settings; persistSettings(); }
+          if(data.log){ state.log=data.log; persistLog(); }
+          render();
+          alert('Backup berhasil dimuat.');
+        }catch(e){ alert('File backup tidak valid.'); }
+      };
+      reader.readAsText(file);
+    };
+    inp.click();
+  };
+  const btnReset = document.getElementById('btnResetData');
+  if(btnReset) btnReset.onclick = ()=>{
+    if(confirm('Ini akan menghapus semua data dan mengganti dengan data contoh. Lanjutkan?')){
+      state.items = seedData(); state.log = [];
+      persistItems(); persistLog(); render();
+    }
+  };
+}
+
+function renderKeepFocus(inputId){
+  const el = document.getElementById(inputId);
+  const pos = el.selectionStart;
+  render();
+  const el2 = document.getElementById(inputId);
+  if(el2){ el2.focus(); el2.setSelectionRange(pos,pos); }
+}
+
+/* ---------------- CSV import flow ---------------- */
+function importCsvFlow(){
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept='.csv,text/csv';
+  inp.onchange = ()=>{
+    const file = inp.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const rows = parseCsv(reader.result);
+      const header = rows[0].map(h=>h.trim().toLowerCase());
+      const idx = (name)=>header.indexOf(name);
+      let added=0, updated=0;
+      for(let i=1;i<rows.length;i++){
+        const r = rows[i];
+        if(r.length<2 || !r[idx('name')]) continue;
+        const name = r[idx('name')];
+        const data = {
+          name,
+          category: r[idx('category')] || 'raw',
+          uom: r[idx('uom')] || 'Gram',
+          gramPerPac: parseFloat(r[idx('gramperpac')]) || 1,
+          pacPerCarton: parseFloat(r[idx('pacpercarton')])||1,
+          stock: parseFloat(r[idx('stock')])||0,
+          sales30: parseFloat(r[idx('sales30')])||0,
+          expiryDates: (r[idx('expirydates')]||'').split('|').map(s=>s.trim()).filter(Boolean)
+        };
+        const existing = state.items.find(x=>x.name.toLowerCase()===name.toLowerCase());
+        if(existing){ Object.assign(existing, data); updated++; }
+        else { state.items.push({id:uid(), ...data}); added++; }
+      }
+      persistItems();
+      render();
+      alert(`Import selesai: ${added} baru, ${updated} diperbarui.`);
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+
+/* ---------------- init ---------------- */
+render();

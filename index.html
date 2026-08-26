@@ -1,116 +1,48 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#5a321d">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>KK Inventory</title>
 <link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#14110F">
 <link rel="stylesheet" href="style.css">
-<title>Inventory KK</title>
 </head>
 <body>
-<div id="loginView" class="login-view">
-  <div class="login-card">
-    <div class="brand-mark">KK</div>
-    <div class="eyebrow">INVENTORY MANAGEMENT</div>
-    <h1>Inventory KK</h1>
-    <p class="muted">Kelola stok, batch, Daily SO, dan estimasi order dari HP.</p>
-    <form id="loginForm" autocomplete="on">
-      <label>Username<input id="loginUsername" name="username" autocomplete="username" placeholder="Username"></label>
-      <label>Password<input id="loginPassword" name="password" type="password" autocomplete="current-password" placeholder="Password"></label>
-      <div id="loginError" class="error-text"></div>
-      <button class="btn primary full" type="submit">Masuk</button>
-    </form>
-    <div class="demo-box"><strong>Demo lokal</strong><br>admin / admin123 &nbsp;·&nbsp; manager / 654321 &nbsp;·&nbsp; staff / 123456 &nbsp;·&nbsp; viewer / 111111</div>
-    <div class="security-note">Catatan: login ini berjalan di browser (GitHub Pages/static). Untuk autentikasi produksi, sambungkan ke backend seperti Supabase/Firebase.</div>
-  </div>
-</div>
 
-<div id="appView" class="app-view hidden">
+<div id="app">
+
+  <!-- Top bar -->
   <header class="topbar">
-    <div class="brand-block"><div class="brand-title">📦 Inventory KK</div><div id="pageSubtitle" class="muted">Dashboard</div></div>
-    <div class="top-actions"><span id="onlineBadge" class="status-dot">LOCAL</span><button id="userMenuBtn" class="user-pill" type="button"><span id="userAvatar">A</span><span id="userLabel">Admin</span>⌄</button></div>
+    <div class="brand">
+      <span class="brand-mark">KK</span>
+      <span class="brand-text">Inventory</span>
+    </div>
+    <div class="topbar-actions">
+      <span id="clock" class="clock"></span>
+    </div>
   </header>
-  <div id="userMenu" class="user-menu hidden">
-    <div id="menuUserName" class="menu-user"></div><div id="menuUserGroup" class="muted"></div>
-    <button id="menuLogout" class="menu-item danger">Keluar</button>
-  </div>
 
-  <main class="content">
-    <section id="page-dashboard" class="page active">
-      <div class="page-head"><div><div class="eyebrow">OPERASIONAL</div><h2>Halo, <span id="helloName">User</span> 👋</h2><p class="muted">Pantau kondisi inventory hari ini.</p></div><button class="btn primary" data-go="warehouse">+ Transaksi</button></div>
-      <div class="metrics-grid">
-        <div class="metric-card"><span>📦</span><small>Total Item</small><strong id="metricItems">0</strong><em>semua kategori</em></div>
-        <div class="metric-card"><span>⚠️</span><small>Stok Menipis</small><strong id="metricLow">0</strong><em>stok &lt; 5</em></div>
-        <div class="metric-card"><span>⏳</span><small>Akan Expire</small><strong id="metricExpire">0</strong><em>7 hari</em></div>
-        <div class="metric-card"><span>📋</span><small>Daily SO</small><strong id="metricSO">0%</strong><em>item dicek hari ini</em></div>
-      </div>
-      <div class="grid-2">
-        <div class="panel"><div class="panel-head"><h3>Stok Menipis</h3><button class="link-btn" data-go="master">Lihat semua</button></div><div id="lowStockList" class="list compact"></div></div>
-        <div class="panel"><div class="panel-head"><h3>Batch Terdekat Expire</h3><button class="link-btn" data-go="warehouse">Buka batch</button></div><div id="expiryList" class="list compact"></div></div>
-      </div>
-      <div class="panel"><div class="panel-head"><h3>Aktivitas Terbaru</h3><span class="muted">10 aktivitas</span></div><div id="activityList" class="list"></div></div>
-    </section>
+  <!-- Alert strip -->
+  <div id="alertStrip" class="alert-strip hidden"></div>
 
-    <section id="page-master" class="page">
-      <div class="page-head"><div><div class="eyebrow">MASTER DATA</div><h2>Master Item</h2><p class="muted">Kelola nama, SKU, kategori, UOM, dan stok awal.</p></div><button class="btn primary" id="addItemBtn">+ Tambah Item</button></div>
-      <div class="toolbar"><input id="masterSearch" class="search" placeholder="Cari item atau SKU..."><select id="masterCategory"><option value="all">Semua kategori</option><option>Raw Material</option><option>Merchandise</option><option>Kitchen Supplier</option></select></div>
-      <div id="masterList" class="list"></div>
-    </section>
-
-    <section id="page-warehouse" class="page">
-      <div class="page-head"><div><div class="eyebrow">TRANSAKSI</div><h2>Gudang</h2><p class="muted">Barang masuk, barang keluar, dan batch FEFO.</p></div><div class="head-buttons"><button class="btn secondary" id="openInBtn">+ Barang IN</button><button class="btn primary" id="openOutBtn">− Barang OUT</button></div></div>
-      <div class="tabs"><button class="tab active" data-tab="in">Barang IN</button><button class="tab" data-tab="out">Barang OUT</button><button class="tab" data-tab="batch">Batch Expire</button></div>
-      <div id="warehouse-in" class="tab-panel active"><div id="inList" class="list"></div></div>
-      <div id="warehouse-out" class="tab-panel"><div id="outList" class="list"></div></div>
-      <div id="warehouse-batch" class="tab-panel"><div id="batchList" class="list"></div></div>
-    </section>
-
-    <section id="page-dailyso" class="page">
-      <div class="page-head"><div><div class="eyebrow">STOCK OPNAME</div><h2>Daily SO Bar</h2><p class="muted">Bandingkan fisik dengan stok sistem.</p></div><button class="btn primary" id="openSoBtn">+ Input SO</button></div>
-      <div class="so-summary"><div class="metric-card"><small>Item SO Hari Ini</small><strong id="soCount">0</strong></div><div class="metric-card"><small>Total Selisih</small><strong id="soDiff">0</strong></div><div class="metric-card"><small>Akurasi</small><strong id="soAccuracy">0%</strong></div></div>
-      <div id="soList" class="list"></div>
-    </section>
-
-    <section id="page-estimate" class="page">
-      <div class="page-head"><div><div class="eyebrow">PURCHASING</div><h2>Estimasi Order</h2><p class="muted">Hitung rekomendasi order berdasarkan penjualan dan stok.</p></div></div>
-      <div class="panel form-panel">
-        <div class="field-grid">
-          <label>Item<select id="estimateItem"></select></label>
-          <label>Penjualan 30 Hari<input id="estimateSales" type="number" min="0" step="0.01" value="0"></label>
-          <label>Hari Aman<input id="estimateSafeDays" type="number" min="0" step="1" value="7"></label>
-          <label>Safety Factor<input id="estimateFactor" type="number" min="0" step="0.05" value="1.10"></label>
-        </div>
-        <div class="estimate-result"><div><small>Stok Saat Ini</small><strong id="estimateCurrent">0</strong></div><div><small>Rata-rata / Hari</small><strong id="estimateDaily">0</strong></div><div><small>Rekomendasi Order</small><strong id="estimateRecommendation">0</strong></div></div>
-        <div class="actions"><button class="btn secondary" id="addDraftBtn">+ Tambah ke Draft</button></div>
-      </div>
-      <div class="panel"><div class="panel-head"><h3>Draft Order</h3><span class="muted">belum diproses</span></div><div id="draftList" class="list"></div></div>
-    </section>
-
-    <section id="page-settings" class="page">
-      <div class="page-head"><div><div class="eyebrow">ADMINISTRASI</div><h2>Pengaturan</h2><p class="muted">Backup data dan hak akses user.</p></div></div>
-      <div class="grid-2">
-        <div class="panel"><div class="panel-head"><h3>Data & Backup</h3></div><p class="muted">Semua data demo tersimpan di browser ini.</p><div class="button-stack"><button id="exportBtn" class="btn secondary">📤 Export JSON</button><button id="importBtn" class="btn secondary">📥 Import JSON</button><input id="importFile" type="file" accept="application/json" hidden><button id="resetBtn" class="btn danger">🗑️ Reset Data</button></div></div>
-        <div class="panel"><div class="panel-head"><h3>User & Group</h3><span id="userMgmtHint" class="muted"></span></div><div id="userList" class="list compact"></div><button id="addUserBtn" class="btn primary full" style="margin-top:10px">+ Tambah User</button></div>
-      </div>
-      <div class="panel"><div class="panel-head"><h3>Hak Akses Group</h3></div><div class="permission-table" id="permissionTable"></div></div>
-    </section>
-  </main>
-
-  <nav class="bottom-nav" id="bottomNav">
-    <button class="nav-btn active" data-page="dashboard"><span>📊</span><small>Dashboard</small></button>
-    <button class="nav-btn" data-page="master"><span>📋</span><small>Master</small></button>
-    <button class="nav-btn" data-page="warehouse"><span>🏚️</span><small>Gudang</small></button>
-    <button class="nav-btn" data-page="dailyso"><span>🧾</span><small>Daily SO</small></button>
-    <button class="nav-btn" data-page="estimate"><span>📈</span><small>Estimate</small></button>
-    <button class="nav-btn" data-page="settings"><span>⚙️</span><small>Settings</small></button>
+  <!-- Nav -->
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="dashboard">Ringkasan</button>
+    <button class="tab" data-tab="master">Master Barang</button>
+    <button class="tab" data-tab="stok">Stok Harian</button>
+    <button class="tab" data-tab="penjualan">Data Penjualan</button>
+    <button class="tab" data-tab="order">Order Warehouse</button>
+    <button class="tab" data-tab="settings">Pengaturan</button>
   </nav>
+
+  <main id="content"></main>
+
 </div>
 
+<!-- Modal root -->
 <div id="modalRoot"></div>
-<div id="toast" class="toast"></div>
+
 <script src="app.js"></script>
 </body>
 </html>
