@@ -1,215 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root {
+    /* Color Palette: Warm, Clean, Premium */
+    --bg-main: #FAF8F5; /* Off-white warm background */
+    --bg-card: #FFFFFF;
+    
+    --text-primary: #1A1A1A;
+    --text-secondary: #6B7280;
+    
+    --brand-primary: #3E2723; /* Espresso Dark */
+    --brand-accent: #D7CCC8;  /* Warm Latte */
+    --brand-highlight: #D84315; /* Subtle orange for alerts/buttons */
 
-:root{
-  --bg: #14110F;
-  --panel: #1D1915;
-  --panel-2: #262019;
-  --line: #38312A;
-  --tan: #D8C7A1;
-  --tan-dim: #9C8F76;
-  --text: #EDE6DA;
-  --text-dim: #A79E8E;
-  --roast: #B5622C;
-  --roast-dim: #7A4420;
-  --ok: #6FAE6E;
-  --warn: #E0A526;
-  --danger: #D6533F;
-  --radius: 3px;
-}
+    /* Status Colors */
+    --status-safe: #2E7D32;
+    --status-warning: #F57C00;
+    --status-danger: #D32F2F;
 
-*{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
-body{
-  background:var(--bg);
-  color:var(--text);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  min-height:100vh;
-  -webkit-font-smoothing:antialiased;
-}
-
-::selection{background:var(--roast);color:#fff;}
-
-/* ---------- Topbar ---------- */
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:14px 18px;
-  border-bottom:1px solid var(--line);
-  position:sticky;top:0;background:var(--bg);z-index:20;
-}
-.brand{display:flex;align-items:baseline;gap:8px;}
-.brand-mark{
-  font-family:'Archivo',sans-serif;font-weight:800;font-size:20px;
-  background:var(--roast);color:#fff;padding:2px 7px;border-radius:2px;
-  letter-spacing:1px;
-}
-.brand-text{
-  font-family:'Archivo',sans-serif;font-weight:700;font-size:15px;
-  letter-spacing:2px;text-transform:uppercase;color:var(--tan);
-}
-.clock{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-dim);}
-
-/* ---------- Alert strip ---------- */
-.alert-strip{
-  background:repeating-linear-gradient(135deg,#3a2410,#3a2410 10px,#33200e 10px,#33200e 20px);
-  border-bottom:1px solid var(--warn);
-  color:var(--warn);
-  font-family:'IBM Plex Mono',monospace;
-  font-size:12.5px;
-  padding:9px 18px;
-  display:flex;gap:18px;overflow-x:auto;white-space:nowrap;
-}
-.alert-strip.hidden{display:none;}
-.alert-strip b{color:#fff;}
-
-/* ---------- Tabs ---------- */
-.tabs{
-  display:flex;overflow-x:auto;
-  border-bottom:1px solid var(--line);
-  background:var(--panel);
-  position:sticky;top:57px;z-index:19;
-}
-.tab{
-  flex:0 0 auto;
-  font-family:'Archivo',sans-serif;font-weight:700;font-size:12px;
-  letter-spacing:1px;text-transform:uppercase;
-  color:var(--text-dim);
-  background:transparent;border:none;border-bottom:2px solid transparent;
-  padding:13px 16px;cursor:pointer;
-}
-.tab.active{color:var(--tan);border-bottom-color:var(--roast);}
-.tab:active{opacity:0.7;}
-
-main{padding:16px;padding-bottom:60px;max-width:1100px;margin:0 auto;}
-
-/* ---------- Section headers ---------- */
-.section-head{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:12px;flex-wrap:wrap;gap:10px;
-}
-.section-title{
-  font-family:'Archivo',sans-serif;font-weight:800;font-size:13px;
-  letter-spacing:2px;text-transform:uppercase;color:var(--tan);
-  display:flex;align-items:center;gap:8px;
-}
-.section-title::before{
-  content:"";width:14px;height:2px;background:var(--roast);display:inline-block;
-}
-.section-sub{font-size:11.5px;color:var(--text-dim);margin-top:2px;}
-
-/* ---------- Cards / KPIs ---------- */
-.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px;}
-.kpi{
-  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  padding:12px 14px;
-}
-.kpi .num{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--text);}
-.kpi .lbl{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;}
-.kpi.danger .num{color:var(--danger);}
-.kpi.warn .num{color:var(--warn);}
-.kpi.ok .num{color:var(--ok);}
-
-/* ---------- Ledger table (signature element) ---------- */
-.ledger{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:22px;}
-.ledger-row{
-  display:grid;
-  border-bottom:1px solid var(--line);
-  background:var(--panel);
-  position:relative;
-  padding-left:8px;
-}
-.ledger-row:last-child{border-bottom:none;}
-.ledger-row::before{
-  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
-  background:var(--line);
-}
-.ledger-row.status-ok::before{background:var(--ok);}
-.ledger-row.status-warn::before{background:var(--warn);}
-.ledger-row.status-danger::before{background:var(--danger);}
-.ledger-row.head{background:var(--panel-2);}
-.ledger-row.head::before{background:transparent;}
-.ledger-cell{padding:10px 10px;font-size:12.5px;border-right:1px dashed var(--line);display:flex;flex-direction:column;justify-content:center;}
-.ledger-cell:last-child{border-right:none;}
-.ledger-cell .lbl-mini{font-size:9.5px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-dim);display:none;}
-.ledger-row.head .ledger-cell{
-  font-family:'Archivo',sans-serif;font-weight:700;font-size:10.5px;
-  text-transform:uppercase;letter-spacing:0.7px;color:var(--tan-dim);
-}
-.mono{font-family:'IBM Plex Mono',monospace;}
-.num-cell{font-family:'IBM Plex Mono',monospace;}
-.tag{
-  display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;
-  padding:2px 6px;border-radius:2px;border:1px solid currentColor;
-}
-.tag.ok{color:var(--ok);}
-.tag.warn{color:var(--warn);}
-.tag.danger{color:var(--danger);}
-
-/* ---------- Forms / buttons ---------- */
-.btn{
-  font-family:'Archivo',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.8px;text-transform:uppercase;
-  background:var(--roast);color:#fff;border:none;border-radius:var(--radius);
-  padding:9px 14px;cursor:pointer;
-}
-.btn.secondary{background:transparent;color:var(--tan);border:1px solid var(--line);}
-.btn.ghost{background:transparent;color:var(--text-dim);border:1px solid var(--line);}
-.btn.danger{background:var(--danger);}
-.btn:active{opacity:0.8;}
-.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
-
-input,select,textarea{
-  background:var(--panel-2);border:1px solid var(--line);color:var(--text);
-  border-radius:var(--radius);padding:8px 9px;font-size:13.5px;font-family:inherit;
-  width:100%;
-}
-input.mono, .qty-input{font-family:'IBM Plex Mono',monospace;}
-label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;}
-.field{margin-bottom:12px;}
-.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
-
-/* ---------- Modal ---------- */
-.modal-bg{
-  position:fixed;inset:0;background:rgba(0,0,0,0.6);
-  display:flex;align-items:flex-end;justify-content:center;z-index:100;
-}
-.modal{
-  background:var(--panel);border-top:1px solid var(--line);
-  width:100%;max-width:560px;max-height:88vh;overflow-y:auto;
-  padding:18px;border-radius:8px 8px 0 0;
-}
-@media(min-width:700px){
-  .modal-bg{align-items:center;}
-  .modal{border-radius:6px;border:1px solid var(--line);}
-}
-.modal-title{font-family:'Archivo',sans-serif;font-weight:800;font-size:14px;letter-spacing:1px;text-transform:uppercase;color:var(--tan);margin-bottom:14px;}
-
-/* ---------- Empty state ---------- */
-.empty{
-  text-align:center;padding:40px 20px;color:var(--text-dim);
-  border:1px dashed var(--line);border-radius:var(--radius);font-size:13px;
+    /* Typography - Menggunakan System Font agar rapi di iPhone (San Francisco) */
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    
+    /* Spacing & Borders */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    
+    /* Mobile Safe Areas (iPhone Notch/Home Indicator support) */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* ---------- Search ---------- */
-.searchbar{margin-bottom:12px;}
-
-table.simple{width:100%;border-collapse:collapse;font-size:12.5px;}
-table.simple th{
-  font-family:'Archivo',sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;
-  color:var(--tan-dim);text-align:left;padding:8px;border-bottom:1px solid var(--line);
+/* Reset Dasar */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent; /* Hilangkan blink biru di HP saat klik */
 }
-table.simple td{padding:7px 8px;border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;}
 
-.small-note{font-size:11px;color:var(--text-dim);margin-top:4px;}
-
-.pill-group{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
-.pill{
-  font-family:'Archivo',sans-serif;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;
-  padding:6px 10px;border-radius:20px;border:1px solid var(--line);color:var(--text-dim);cursor:pointer;
-}
-.pill.active{background:var(--roast);color:#fff;border-color:var(--roast);}
-
-/* row-level responsive: stack ledger cells on narrow screens via JS-set grid-template-columns */
-@media(max-width:640px){
-  .field-row{grid-template-columns:1fr;}
+body {
+    font-family: var(--font-family);
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    line-height: 1.5;
+    /* Mencegah overscroll bounce di iOS */
+    overscroll-behavior-y: none; 
 }
