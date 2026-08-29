@@ -1,1 +1,150 @@
-<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#c91f2b"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="style.css"><title>KKMongin Inventory</title></head><body><div id="app"></div><script src="app.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KK Inventory Ops</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- LOGIN PAGE -->
+    <div id="login-page" class="page active">
+        <div class="login-container">
+            <div class="logo-kk-large">♥</div>
+            <h2>KK Inventory Ops</h2>
+            <input type="text" id="login-username" placeholder="Username (manager)">
+            <input type="password" id="login-password" placeholder="Password (1234)">
+            <button class="btn-primary" onclick="app.login()">Masuk</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="main-app" class="page" style="display: none;">
+        <!-- Topbar -->
+        <header class="topbar">
+            <div>
+                <span class="greeting" id="user-greeting">Hi, Manager</span>
+                <span class="role-badge">MANAGER</span>
+            </div>
+            <button class="btn-logout" onclick="app.logout()">Keluar</button>
+        </header>
+
+        <!-- VIEWS -->
+        <main class="content">
+            <!-- DASHBOARD -->
+            <section id="view-dashboard" class="view">
+                <h2 class="section-title">Dashboard</h2>
+                <div id="expiry-warning-container"></div>
+                
+                <h3 class="category-title">RAW MATERIAL</h3>
+                <div id="dash-raw-material"></div>
+                
+                <h3 class="category-title mt-4">MERCHANDISE</h3>
+                <div id="dash-merchandise"></div>
+            </section>
+
+            <!-- IN (BARANG MASUK) -->
+            <section id="view-in" class="view" style="display: none;">
+                <h2 class="section-title">Barang Masuk (IN)</h2>
+                <div class="action-buttons">
+                    <button class="btn-primary" onclick="app.openModal('modal-in')">+ Barang Masuk</button>
+                </div>
+                <h3>History IN</h3>
+                <div class="history-list" id="history-in-list"></div>
+            </section>
+
+            <!-- OUT (BARANG KELUAR) -->
+            <section id="view-out" class="view" style="display: none;">
+                <h2 class="section-title">Barang Keluar (OUT)</h2>
+                <p class="helper-text">OUT Raw Material otomatis mengikuti sistem FEFO (First Expired, First Out).</p>
+                <div class="action-buttons">
+                    <button class="btn-primary" onclick="app.openModal('modal-out')">+ Catat OUT</button>
+                </div>
+                <h3>History OUT</h3>
+                <div class="history-list" id="history-out-list"></div>
+            </section>
+
+            <!-- DAILY SO -->
+            <section id="view-so" class="view" style="display: none;">
+                <h2 class="section-title">Daily SO</h2>
+                <p class="helper-text">Khusus Raw Material Bar. Hasil SO menjadi acuan mutlak stok akhir aktual untuk Estimasi Pengorderan.</p>
+                <div class="action-buttons">
+                    <button class="btn-primary btn-so" onclick="app.openModal('modal-so')">+ Input Daily SO</button>
+                </div>
+                <h3>SO Terakhir</h3>
+                <div class="history-list" id="history-so-list"></div>
+            </section>
+
+            <!-- ESTIMASI PENGORDERAN -->
+            <section id="view-estimasi" class="view" style="display: none;">
+                <h2 class="section-title">Estimasi Pengorderan</h2>
+                <p class="helper-text">Membaca stok akhir aktual + sales 30 hari + buffer.</p>
+                <div id="estimasi-list"></div>
+            </section>
+
+            <!-- MANAGER -->
+            <section id="view-manager" class="view" style="display: none;">
+                <h2 class="section-title">Manager Panel</h2>
+                <div class="manager-menu">
+                    <button class="btn-outline" onclick="app.openModal('modal-stock-awal')">Stock Awal (Baseline)</button>
+                    <button class="btn-outline" onclick="app.openModal('modal-sales')">Update Sales 30 Hari</button>
+                    <button class="btn-outline" onclick="app.exportData()">Export Data (JSON)</button>
+                    <button class="btn-danger" onclick="app.resetSystem()">Reset System</button>
+                </div>
+            </section>
+        </main>
+
+        <!-- BOTTOM NAV -->
+        <nav class="bottom-nav">
+            <a href="#dashboard" class="nav-item active" onclick="app.switchView('dashboard')"><span>Dash</span></a>
+            <a href="#in" class="nav-item" onclick="app.switchView('in')"><span>IN</span></a>
+            <a href="#out" class="nav-item" onclick="app.switchView('out')"><span>OUT</span></a>
+            <a href="#so" class="nav-item nav-so" onclick="app.switchView('so')"><span class="logo-kk-small">♥</span><span>SO</span></a>
+            <a href="#estimasi" class="nav-item" onclick="app.switchView('estimasi')"><span>Order</span></a>
+            <a href="#manager" class="nav-item" onclick="app.switchView('manager')"><span>Mgr</span></a>
+        </nav>
+    </div>
+
+    <!-- MODALS -->
+    <div class="modal-overlay" id="modal-overlay" style="display: none;"></div>
+    
+    <!-- Modal IN -->
+    <div class="modal" id="modal-in" style="display: none;">
+        <h3>Barang Masuk</h3>
+        <select id="in-item" onchange="app.checkCategory('in')"></select>
+        <input type="number" id="in-qty" placeholder="Qty">
+        <div id="in-batch-group" style="display: none;">
+            <input type="date" id="in-exp" placeholder="Expiry Date">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-outline" onclick="app.closeModal('modal-in')">Batal</button>
+            <button class="btn-primary" onclick="app.submitIn()">Simpan IN</button>
+        </div>
+    </div>
+
+    <!-- Modal OUT -->
+    <div class="modal" id="modal-out" style="display: none;">
+        <h3>Barang Keluar</h3>
+        <select id="out-item"></select>
+        <input type="number" id="out-qty" placeholder="Qty Keluar">
+        <input type="text" id="out-detail" placeholder="Detail (Cth: Terpakai, Terjual)">
+        <div class="modal-actions">
+            <button class="btn-outline" onclick="app.closeModal('modal-out')">Batal</button>
+            <button class="btn-primary" onclick="app.submitOut()">Simpan OUT</button>
+        </div>
+    </div>
+
+    <!-- Modal SO -->
+    <div class="modal" id="modal-so" style="display: none;">
+        <h3>Input Daily SO</h3>
+        <select id="so-item"></select>
+        <input type="number" id="so-qty" placeholder="Qty Aktual saat ini">
+        <div class="modal-actions">
+            <button class="btn-outline" onclick="app.closeModal('modal-so')">Batal</button>
+            <button class="btn-primary" onclick="app.submitSo()">Simpan SO</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
