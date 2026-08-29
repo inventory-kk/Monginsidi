@@ -1,8 +1,0 @@
-{
-  "name": "KK Inventory",
-  "short_name": "KK Inventory",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#14110F",
-  "theme_color": "#14110F"
-}
